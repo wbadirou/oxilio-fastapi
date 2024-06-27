@@ -1,1 +1,6 @@
-fastapi[all]
+fastapi[all]~=0.111.0
+mysql~=0.0.3
+mysql-connector-python~=8.4.0
+psycopg2~=2.9.9
+pycryp~=0.2.1
+pydantic~=2.7.1
