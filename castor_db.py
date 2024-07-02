@@ -1,8 +1,6 @@
 from datetime import datetime, time
 import time
 import mysql.connector
-from FastAPI.myAPI.myAPI.src.routers import castor_tools
-
 
 # creating DB connection and cursor
 def create_db_connector(db_name=str("none")):

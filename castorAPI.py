@@ -2,9 +2,7 @@ from datetime import datetime, time
 
 import mysql.connector
 import json
-import psycopg2
-
-from FastAPI.myAPI.myAPI.src.routers import castor_db
+import castor_db
 
 
 def welcome():
