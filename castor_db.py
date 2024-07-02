@@ -6,7 +6,7 @@ import mysql.connector
 # creating DB connection and cursor
 def create_db_connector(db_name=str("none")):
     # db_host, db_port, db_user, db_pass = castor_tools.get_mysql_creds()
-    db_host = "localhost"
+    db_host = "127.0.0.1"
     db_port = 3306
     db_user = "admin"
     db_pass = "adminoxilio"
