@@ -2,6 +2,7 @@ from datetime import datetime, time
 import time
 import mysql.connector
 
+
 # creating DB connection and cursor
 def create_db_connector(db_name=str("none")):
     # db_host, db_port, db_user, db_pass = castor_tools.get_mysql_creds()
@@ -220,7 +221,8 @@ def create_tables(db_name=str, db_user=str, db_pass=str):
 
 
 #Insert new API user
-def insert_user_api(db_name=str, username=str, hashed_password=str, full_name=str, email=str, create_time=datetime.now(),
+def insert_user_api(db_name=str, username=str, hashed_password=str, full_name=str, email=str,
+                    create_time=datetime.now(),
                     disabled=int):
     try:
         conn = create_db_connector(str(db_name))
