@@ -1,6 +1,7 @@
 from datetime import datetime, time
 import time
 import mysql.connector
+from FastAPI.myAPI.myAPI.src.routers import castor_tools
 
 
 # creating DB connection and cursor
@@ -28,6 +29,62 @@ def create_db_connector(db_name=str("none")):
         )
 
     return my_sql_conn
+
+
+# creating DB connection and cursor by client
+def create_db_connector_by_client(db_name=str("none"), db_user=str, db_pass=str):
+    # db_host, db_port, db_user, db_pass = castor_tools.get_mysql_creds()
+    db_host = "localhost"
+    db_port = 3306
+
+    if db_name.lower() == "none":
+        my_sql_conn = mysql.connector.connect(
+            host=db_host,
+            port=db_port,
+            user=db_user,
+            password=db_pass
+        )
+    else:
+        my_sql_conn = mysql.connector.connect(
+            host=db_host,
+            port=db_port,
+            user=db_user,
+            password=db_pass,
+            database=db_name
+        )
+
+    return my_sql_conn
+
+
+#Retrieve username and password from Oxilio client db
+def retrieve_client_credentials(client_id=int):
+    try:
+        conn = create_db_connector()
+        c = conn.cursor()
+        sql = f"SELECT user_name, aes_decrypt(password,'oxiliotakesgoodcareofitsemployees2024!') FROM oxilioclients.gen WHERE client_id={client_id}; "
+        conn.commit()
+        conn.close()
+    except (mysql.connector.errors.ProgrammingError,
+            mysql.connector.errors.DatabaseError) as e:
+        print(f"Exception: {e} \n")
+
+
+#Create user
+def create_user_credentials(db_user=str, db_pass=str):
+    records = ""
+    try:
+        conn = create_db_connector()
+        c = conn.cursor()
+        sql = f"CREATE USER '{db_user}' IDENTIFIED WITH mysql_native_password BY '{db_pass}'"
+        c.execute(sql)
+        records = c.fetchall()
+        conn.close()
+    except (mysql.connector.errors.ProgrammingError,
+            mysql.connector.errors.DatabaseError) as e:
+        print(f"Exception: {e} \n")
+        print(f"Record about user do not exist.")
+
+    return records
 
 
 def check_db_exist(db_name=str):
@@ -76,6 +133,23 @@ def create_database(db_name=str):
         print(f"Exception: {e} \n")
 
 
+#Create client database and grant access
+def create_database_client(db_name=str, db_user=str):
+    try:
+        conn = create_db_connector()
+        c = conn.cursor()
+        # creating the DB
+        sql_db = f"CREATE DATABASE {db_name};"
+        sql_privileges = f"GRANT ALL PRIVILEGES ON {db_user}.* TO '{db_name}';"
+        c.execute(sql_db)
+        time.sleep(1)
+        c.execute(sql_privileges)
+        time.sleep(1)
+    except (mysql.connector.errors.ProgrammingError,
+            mysql.connector.errors.DatabaseError) as e:
+        print(f"Exception: {e} \n")
+
+
 # Function to delete the database
 def delete_database(db_name=str):
     try:
@@ -92,9 +166,9 @@ def delete_database(db_name=str):
 
 
 # Function to create the database and table
-def create_tables(db_name=str):
+def create_tables(db_name=str, db_user=str, db_pass=str):
     try:
-        conn = create_db_connector(str(db_name))
+        conn = create_db_connector_by_client(str(db_name), db_user, db_pass)
         c = conn.cursor()
         c.execute('''CREATE TABLE IF NOT EXISTS `gen` (
                       `id` int NOT NULL AUTO_INCREMENT,
@@ -147,24 +221,43 @@ def create_tables(db_name=str):
     time.sleep(1)
 
 
-def insert_client(db_name=str, is_active=bool, client_id=int, client_name=str, last_modified=datetime.now()):
+#Insert new API user
+def insert_user_api(db_name=str, username=str, hashed_password=str, full_name=str, email=str, create_time=datetime.now(),
+                    disabled=int):
     try:
         conn = create_db_connector(str(db_name))
         c = conn.cursor()
-        c.execute(f'''INSERT INTO `gen`
-                     (`isActive`,`client_id`,`client_name`,`last_modified`) VALUES ({is_active}, {client_id}, "{client_name}", "{last_modified}");''')
+        c.execute(f'''INSERT INTO `user`
+                     (`username`,`hashed_password`,`full_name`,`email`,`create_time`,`disabled`) VALUES ("{username}", "{hashed_password}", "{full_name}", "{email}", "{create_time}", {disabled});''')
         conn.commit()
         conn.close()
-        print(
-            f" Values {is_active} , {client_id}, {client_name}, {last_modified} inserted in database: {db_name.upper()} table: oxilioclients.gen")
     except (mysql.connector.errors.ProgrammingError,
             mysql.connector.errors.DatabaseError) as e:
         print(f"Exception: {e} \n")
 
 
-def insert_default_gen_values(db_name=str):
+#Insert client in Oxilio DB
+def insert_client(db_name=str, is_active=bool, client_id=int, client_name=str, last_modified=datetime.now(),
+                  user_name=str, password=str):
     try:
         conn = create_db_connector(str(db_name))
+        c = conn.cursor()
+        c.execute(f'''INSERT INTO `gen`
+                     (`isActive`,`client_id`,`client_name`,`last_modified`,`user_name`,`password`) VALUES ({is_active}, {client_id}, "{client_name}", "{last_modified}, "{user_name}", aes_encrypt("{password}","oxiliotakesgoodcareofitsemployees2024"!)");''')
+        conn.commit()
+        conn.close()
+        print(
+            f" Values {is_active} , {client_id}, {client_name}, {last_modified} inserted in database: {db_name.upper()} table: oxilioclients.gen")
+        create_user_credentials(db_user=user_name, db_pass=password)
+        create_database_client(db_name, db_user=user_name)
+    except (mysql.connector.errors.ProgrammingError,
+            mysql.connector.errors.DatabaseError) as e:
+        print(f"Exception: {e} \n")
+
+
+def insert_default_gen_values(db_name=str, db_user=str, db_pass=str):
+    try:
+        conn = create_db_connector_by_client(str(db_name), db_user, db_pass)
         # insert into gen table default values
         c = conn.cursor()
         c.execute('''INSERT INTO `gen`
@@ -177,9 +270,9 @@ def insert_default_gen_values(db_name=str):
     time.sleep(1)
 
 
-def delete_client(db_name=str, client_id=int):
+def delete_client(db_name=str, db_user=str, db_pass=str, client_id=int):
     try:
-        conn = create_db_connector(str(db_name))
+        conn = create_db_connector_by_client(str(db_name), db_user, db_pass)
         c = conn.cursor()
         c.execute(f'''UPDATE `gen` SET `isActive` = 0 WHERE (`client_id` = {client_id})''')
         conn.commit()
@@ -189,10 +282,11 @@ def delete_client(db_name=str, client_id=int):
         print(f"Exception: {e} \n")
 
 
-def update_client(db_name=str, is_active=bool, client_id=int, client_name=str, system_api=str,
+def update_client(db_name=str, db_user=str, db_pass=str, is_active=bool, client_id=int, client_name=str,
+                  system_api=str,
                   last_modified=datetime.now(), key1=str, secret1=str, key2=str, secret2=str, api_id=int, hist=bool):
     try:
-        conn = create_db_connector(str(db_name))
+        conn = create_db_connector_by_client(str(db_name), db_user, db_pass)
         # update gen table with values
         c = conn.cursor()
         c.execute(f'''UPDATE`gen` SET
@@ -215,11 +309,11 @@ def update_client(db_name=str, is_active=bool, client_id=int, client_name=str, s
     time.sleep(1)
 
 
-def truncate_rta_table(db_name=str):
+def truncate_rta_table(db_name=str, db_user=str, db_pass=str):
     db_exist = check_db_exist(db_name)
 
     if db_exist:
-        conn = create_db_connector(str(db_name))
+        conn = create_db_connector_by_client(str(db_name), db_user, db_pass)
         c = conn.cursor()
         c.execute("TRUNCATE TABLE rta")
         conn.commit()
@@ -229,9 +323,9 @@ def truncate_rta_table(db_name=str):
 
 
 # Function to insert multiple records into the table
-def insert_records(values, db_name=str, table=str):
+def insert_records(values, db_name=str, db_user=str, db_pass=str, table=str):
     try:
-        conn = create_db_connector(str(db_name))
+        conn = create_db_connector_by_client(str(db_name), db_user, db_pass)
         c = conn.cursor()
         sql = f'INSERT INTO {table} VALUES (%s, %s, %s, %s, %s)'
         c.executemany(sql, values)
@@ -243,11 +337,11 @@ def insert_records(values, db_name=str, table=str):
         print(f"Exception: {e} \n")
 
 
-def get_records(db_name=str, table=str, limit=int(500)):
+def get_records(db_name=str, db_user=str, db_pass=str, table=str, limit=int(500)):
     db_exist = check_db_exist(db_name)
     records = ""
     if db_exist:
-        conn = create_db_connector(str(db_name))
+        conn = create_db_connector_by_client(str(db_name), db_user, db_pass)
         c = conn.cursor()
         c.execute(f'SELECT * FROM {table} ORDER BY tstamp LIMIT {limit}')
         records = c.fetchall()
@@ -334,9 +428,17 @@ def query_client_db(db_name=str, query=str):
     return query_result
 
 
-def db_test_main():
-    pass
-
-
-if __name__ == "__main__":
-    db_test_main()
+def query_client_db_protected(db_name=str, db_user=str, db_pass=str, query=str):
+    db_exist = check_db_exist(db_name)
+    query_result = ""
+    if db_exist:
+        try:
+            conn = create_db_connector_by_client(str(db_name), db_user, db_pass)
+            c = conn.cursor()
+            sql = f"{query}"
+            c.execute(sql)
+            query_result = c.fetchall()
+            conn.close()
+        except (mysql.connector.errors.ProgrammingError, UnboundLocalError) as e:
+            print(f"Exception: {e} \n")
+    return query_result
